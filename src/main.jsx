@@ -32,6 +32,37 @@ function App() {
   const [businessLoading, setBusinessLoading] = useState(true);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [adminLoading, setAdminLoading] = useState(true);
+  const [platformOverview, setPlatformOverview] = useState(null);
+  const [platformOverviewLoading, setPlatformOverviewLoading] = useState(false);
+  const [platformOverviewError, setPlatformOverviewError] = useState('');
+
+  useEffect(() => {
+    if (!isPlatformAdmin || page !== 'Super Admin') return;
+
+    let cancelled = false;
+
+    async function loadPlatformOverview() {
+      setPlatformOverviewLoading(true);
+      setPlatformOverviewError('');
+
+      try {
+        const { data, error } = await supabase.rpc('get_platform_overview');
+        if (error) throw error;
+        if (!cancelled) setPlatformOverview(data);
+      } catch (error) {
+        console.error('Platform overview load failed:', error);
+        if (!cancelled) setPlatformOverviewError(error.message || 'Dashboard data load nahi hua.');
+      } finally {
+        if (!cancelled) setPlatformOverviewLoading(false);
+      }
+    }
+
+    loadPlatformOverview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPlatformAdmin, page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,18 +279,35 @@ function App() {
   function saveBusiness(e) { e.preventDefault(); update({ ...data, business: businessForm }); notify('Business profile saved'); }
   function resetDemo() { if (confirm('Reset all local demo data? This cannot be undone.')) { localStorage.removeItem('vyaparone-demo'); setData(seed); setBusinessForm(seed.business); notify('Demo data reset'); } }
   function exportData() { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bizsaathi-demo-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
-  const nav = [{ group: 'WORKSPACE', items: ['Overview', 'Billing', 'Products & Stock', 'Purchases', 'Customers', 'Expenses', 'Reports'] }, { group: 'SETTINGS', items: ['Business Settings', 'Subscription'] }];
+  const nav = [{ group: 'WORKSPACE', items: ['Overview', 'Billing', 'Products & Stock', 'Purchases', 'Customers', 'Expenses', 'Reports'] }, { group: 'SETTINGS', items: ['Business Settings', 'Subscription'] }, ...(isPlatformAdmin ? [{ group: 'PLATFORM', items: ['Super Admin'] }] : [])];
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">B</div><div><b>BizSaathi</b><small>BUSINESS OS</small></div></div>
       <div className="workspace"><div className="avatar">{(data.business.name || 'B').slice(0,1).toUpperCase()}</div><div className="workspace-copy"><b>{data.business.name || 'My Business'}</b><small>Demo workspace</small></div><span>*</span></div>
-      {nav.map(section => <div className="nav-section" key={section.group}><div className="nav-label">{section.group}</div>{section.items.map(item => <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{({'Overview':'O','Billing':'B','Products & Stock':'P','Purchases':'I','Customers':'C','Expenses':'Rs.','Reports':'R','Business Settings':'S','Subscription':'*'})[item]}</span>{item}</button>)}</div>)}
+      {nav.map(section => <div className="nav-section" key={section.group}><div className="nav-label">{section.group}</div>{section.items.map(item => <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{({'Overview':'O','Billing':'B','Products & Stock':'P','Purchases':'I','Customers':'C','Expenses':'Rs.','Reports':'R','Business Settings':'S','Subscription':'*','Super Admin':'A'})[item]}</span>{item}</button>)}</div>)}
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"></span> DEMO PLAN</div><p>Your local demo workspace is ready.</p><button onClick={() => setPage('Subscription')}>View plans <span>-&gt;</span></button></div><small className="version">BizSaathi Starter | v0.1</small></div>
     </aside>
     <main className="main-area">
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
       <div className="content">
+        {page === 'Super Admin' && isPlatformAdmin && <>
+          <PageHeading title="Super Admin Dashboard" desc="Platform overview of registered businesses and user accounts." />
+          {platformOverviewLoading && <div className="panel">Loading platform overview...</div>}
+          {platformOverviewError && <div className="notice wide-notice">Dashboard error: {platformOverviewError}</div>}
+          {!platformOverviewLoading && !platformOverviewError && platformOverview && <>
+            <div className="stat-grid">
+              <Stat title="Registered businesses" value={platformOverview.total_businesses ?? 0} note="Businesses created on the platform" icon="B" tone="blue" />
+              <Stat title="Registered users" value={platformOverview.total_users ?? 0} note="Auth user accounts" icon="U" tone="purple" />
+            </div>
+            <section className="panel">
+              <div className="panel-heading"><div><h2>Business directory</h2><p>Latest registered businesses</p></div></div>
+              <div className="table-wrap"><table><thead><tr><th>BUSINESS</th><th>BUSINESS ID</th><th>CREATED</th></tr></thead><tbody>
+                {(platformOverview.businesses || []).map(b => <tr key={b.id}><td><b>{b.name}</b></td><td>{b.id}</td><td>{b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : '-'}</td></tr>)}
+              </tbody></table>{!(platformOverview.businesses || []).length && <div className="empty-small">No businesses registered yet.</div>}</div>
+            </section>
+          </>}
+        </>}
         {page === 'Overview' && <>
           <div className="page-heading"><div><div className="eyebrow">BUSINESS OVERVIEW</div><h1>Good day, {data.business.owner || 'there'} <span>*</span></h1><p>Here's what's happening with your business today.</p></div><button className="primary-button" onClick={() => setPage('Billing')}>+ Create invoice</button></div>
           <div className="stat-grid">
@@ -294,6 +342,7 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
 
 
 
