@@ -135,6 +135,22 @@ function App() {
 
         console.log('BizSaathi membership result:', membership);
 
+        if (membership?.business_id) {
+          const { data: isActive, error: statusError } = await supabase.rpc(
+            'is_business_active',
+            { p_business_id: membership.business_id }
+          );
+
+          if (statusError) throw statusError;
+
+          if (!isActive) {
+            if (!cancelled) {
+              notify('Your business account is suspended or unavailable. Please contact the platform administrator.');
+            }
+            return;
+          }
+        }
+
         if (!cancelled && membership?.businesses) {
           const business = membership.businesses;
           setBusinessId(business.id);
@@ -343,6 +359,7 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
 
 
 
