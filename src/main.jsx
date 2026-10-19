@@ -35,6 +35,7 @@ function App() {
   const [platformOverview, setPlatformOverview] = useState(null);
   const [platformOverviewLoading, setPlatformOverviewLoading] = useState(false);
   const [platformOverviewError, setPlatformOverviewError] = useState('');
+  const [statusUpdating, setStatusUpdating] = useState(null);
 
   useEffect(() => {
     if (!isPlatformAdmin || page !== 'Super Admin') return;
@@ -302,8 +303,8 @@ function App() {
             </div>
             <section className="panel">
               <div className="panel-heading"><div><h2>Business directory</h2><p>Latest registered businesses</p></div></div>
-              <div className="table-wrap"><table><thead><tr><th>BUSINESS</th><th>BUSINESS ID</th><th>CREATED</th></tr></thead><tbody>
-                {(platformOverview.businesses || []).map(b => <tr key={b.id}><td><b>{b.name}</b></td><td>{b.id}</td><td>{b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : '-'}</td></tr>)}
+              <div className="table-wrap"><table><thead><tr><th>BUSINESS</th><th>BUSINESS ID</th><th>STATUS</th><th>CREATED</th><th>ACTION</th></tr></thead><tbody>
+                {(platformOverview.businesses || []).map(b => <tr key={b.id}><td><b>{b.name}</b></td><td>{b.id}</td><td><span className={`demo-badge ${b.status === 'suspended' ? 'status-suspended' : ''}`}>{b.status || 'active'}</span></td><td>{b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : '-'}</td><td><button className="text-button" disabled={Boolean(statusUpdating)} onClick={async () => { const nextStatus = b.status === 'suspended' ? 'active' : 'suspended'; const confirmed = window.confirm(`${nextStatus === 'suspended' ? 'Suspend' : 'Activate'} ${b.name}?`); if (!confirmed) return; setStatusUpdating(b.id); try { const { error } = await supabase.rpc('set_business_status', { p_business_id: b.id, p_status: nextStatus }); if (error) throw error; const { data: refreshed, error: refreshError } = await supabase.rpc('get_platform_overview'); if (refreshError) throw refreshError; setPlatformOverview(refreshed); } catch (err) { window.alert(err.message || 'Could not update business status'); } finally { setStatusUpdating(null); } }}>{statusUpdating === b.id ? 'Updating...' : b.status === 'suspended' ? 'Activate' : 'Suspend'}</button></td></tr>)}
               </tbody></table>{!(platformOverview.businesses || []).length && <div className="empty-small">No businesses registered yet.</div>}</div>
             </section>
           </>}
@@ -342,6 +343,8 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
+
 
 
 
