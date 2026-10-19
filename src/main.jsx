@@ -30,6 +30,37 @@ function App() {
 
   const [businessId, setBusinessId] = useState(null);
   const [businessLoading, setBusinessLoading] = useState(true);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+  const [adminLoading, setAdminLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function checkPlatformAdmin() {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+
+        if (!user) return;
+
+        const { data, error } = await supabase.rpc('is_platform_admin');
+        if (error) throw error;
+
+        if (!cancelled) setIsPlatformAdmin(data === true);
+      } catch (error) {
+        console.error('Platform admin check failed:', error);
+        if (!cancelled) setIsPlatformAdmin(false);
+      } finally {
+        if (!cancelled) setAdminLoading(false);
+      }
+    }
+
+    checkPlatformAdmin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -263,6 +294,7 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
 
 
 
