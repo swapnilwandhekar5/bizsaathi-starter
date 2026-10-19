@@ -187,6 +187,42 @@ function App() {
     if (!businessId) return;
     let cancelled = false;
 
+    async function loadCustomers() {
+      try {
+        const { data: rows, error } = await supabase
+          .from('customers')
+          .select('id, business_id, name, phone, created_at')
+          .eq('business_id', businessId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (!cancelled) {
+          setData(previous => ({
+            ...previous,
+            customers: (rows || []).map(row => ({
+              id: row.id,
+              name: row.name,
+              phone: row.phone || ''
+            }))
+          }));
+        }
+      } catch (error) {
+        console.error('Customer load error:', error);
+        if (!cancelled) notify('Customer list load nahi hui: ' + error.message);
+      }
+    }
+
+    loadCustomers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+  useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+
     async function loadProducts() {
       try {
         const { data: rows, error } = await supabase
@@ -272,10 +308,46 @@ function App() {
       notify('Product save nahi hua: ' + error.message);
     }
   }
-  function addCustomer(e) {
-    e.preventDefault(); if (!customerForm.name.trim()) return notify('Customer name is required');
-    update({ ...data, customers: [...data.customers, { ...customerForm, id: uid() }] }); setCustomerForm({ name: '', phone: '' }); notify('Customer added');
+  async function addCustomer(e) {
+    e.preventDefault();
+
+    if (!customerForm.name.trim()) {
+      return notify('Customer name is required');
+    }
+
+    if (!businessId) {
+      return notify('Business abhi load nahi hua. Dobara try karo.');
+    }
+
+    try {
+      const { data: row, error } = await supabase
+        .from('customers')
+        .insert({
+          business_id: businessId,
+          name: customerForm.name.trim(),
+          phone: customerForm.phone.trim() || null
+        })
+        .select('id, business_id, name, phone, created_at')
+        .single();
+
+      if (error) throw error;
+
+      setData(previous => ({
+        ...previous,
+        customers: [
+          ...previous.customers,
+          { id: row.id, name: row.name, phone: row.phone || '' }
+        ]
+      }));
+
+      setCustomerForm({ name: '', phone: '' });
+      notify('Customer saved to cloud');
+    } catch (error) {
+      console.error('Customer save error:', error);
+      notify('Customer save nahi hua: ' + error.message);
+    }
   }
+
   function makeSale(e) {
     e.preventDefault(); const p = data.products.find(x => String(x.id) === String(saleForm.productId)); const qty = +saleForm.qty;
     if (!p || qty < 1) return notify('Choose a product and valid quantity');
@@ -359,6 +431,8 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
+
 
 
 
