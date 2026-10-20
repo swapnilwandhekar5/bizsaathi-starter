@@ -75,6 +75,8 @@ function App() {
 
         if (!user) return;
 
+        console.log('BizSaathi auth user ID:', user.id);
+
         const { data, error } = await supabase.rpc('is_platform_admin');
         if (error) throw error;
 
@@ -103,6 +105,8 @@ function App() {
         if (userError) throw userError;
 
         if (!user) return;
+
+        console.log('BizSaathi auth user ID:', user.id);
 
         let { data: membership, error: membershipError } = await supabase
           .from('business_members')
@@ -154,6 +158,7 @@ function App() {
         if (!cancelled && membership?.businesses) {
           const business = membership.businesses;
           setBusinessId(business.id);
+          console.log('BizSaathi loaded business ID:', business.id);
 
           setData(previous => ({
             ...previous,
@@ -254,6 +259,75 @@ function App() {
     }
 
     loadProducts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
+  useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+
+    async function loadTransactions() {
+      try {
+        const [salesResult, purchasesResult, expensesResult] = await Promise.all([
+          supabase.from('sales')
+            .select('id, business_id, invoice_number, customer_name, total, created_at')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false }),
+          supabase.from('purchases')
+            .select('id, business_id, product_id, product_name, quantity, unit_cost, total, created_at')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false }),
+          supabase.from('expenses')
+            .select('id, business_id, title, amount, created_at')
+            .eq('business_id', businessId)
+            .order('created_at', { ascending: false })
+        ]);
+
+        if (salesResult.error) throw salesResult.error;
+        if (purchasesResult.error) throw purchasesResult.error;
+        if (expensesResult.error) throw expensesResult.error;
+        if (cancelled) return;
+
+        setData(previous => ({
+          ...previous,
+          sales: (salesResult.data || []).map(row => ({
+            id: row.id,
+            invoice: row.invoice_number || '',
+            date: row.created_at,
+            customerName: row.customer_name || '',
+            productName: '',
+            qty: 0,
+            unitPrice: 0,
+            unitCost: 0,
+            subtotal: Number(row.total || 0),
+            taxAmount: 0,
+            total: Number(row.total || 0)
+          })),
+          purchases: (purchasesResult.data || []).map(row => ({
+            id: row.id,
+            date: row.created_at,
+            productName: row.product_name || '',
+            qty: Number(row.quantity || 0),
+            unitCost: Number(row.unit_cost || 0),
+            total: Number(row.total || 0)
+          })),
+          expenses: (expensesResult.data || []).map(row => ({
+            id: row.id,
+            title: row.title || '',
+            amount: Number(row.amount || 0),
+            date: row.created_at
+          }))
+        }));
+        console.log('BizSaathi transactions loaded from Supabase');
+      } catch (error) {
+        console.error('Transaction load error:', error);
+        if (!cancelled) notify('Transactions load nahi hue: ' + error.message);
+      }
+    }
+
+    loadTransactions();
 
     return () => {
       cancelled = true;
