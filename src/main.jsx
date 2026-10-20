@@ -1,4 +1,4 @@
-﻿import AuthGate from './AuthGate.jsx';
+import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
@@ -428,13 +428,112 @@ function App() {
       notify('Sale save nahi hui: ' + (error.message || 'Unknown error'));
     }
   }
-  function makePurchase(e) {
-    e.preventDefault(); const p = data.products.find(x => String(x.id) === String(purchaseForm.productId)); const qty = +purchaseForm.qty; const unitCost = +purchaseForm.unitCost;
-    if (!p || qty < 1 || unitCost < 0) return notify('Enter valid purchase details');
-    const purchase = { id: uid(), date: new Date().toISOString(), productName: p.name, qty, unitCost, total: qty * unitCost };
-    update({ ...data, products: data.products.map(x => x.id === p.id ? { ...x, stock: x.stock + qty, cost: unitCost } : x), purchases: [purchase, ...data.purchases] }); notify('Purchase recorded');
+  async function makePurchase(e) {
+    e.preventDefault();
+
+    const p = data.products.find(
+      x => String(x.id) === String(purchaseForm.productId)
+    );
+    const qty = Number(purchaseForm.qty);
+    const unitCost = Number(purchaseForm.unitCost);
+
+    if (!businessId) return notify('Business abhi load nahi hua. Dobara try karo.');
+    if (!p || !Number.isFinite(qty) || qty <= 0 ||
+        !Number.isFinite(unitCost) || unitCost < 0) {
+      return notify('Enter valid purchase details');
+    }
+
+    try {
+      const { data: purchaseId, error } = await supabase.rpc(
+        'record_business_purchase',
+        {
+          p_business_id: businessId,
+          p_product_id: p.id,
+          p_quantity: qty,
+          p_unit_cost: unitCost
+        }
+      );
+
+      if (error) throw error;
+
+      const purchase = {
+        id: purchaseId,
+        date: new Date().toISOString(),
+        productName: p.name,
+        qty,
+        unitCost,
+        total: qty * unitCost
+      };
+
+      setData(previous => ({
+        ...previous,
+        products: previous.products.map(x =>
+          String(x.id) === String(p.id)
+            ? { ...x, stock: x.stock + qty, cost: unitCost }
+            : x
+        ),
+        purchases: [purchase, ...previous.purchases]
+      }));
+
+      localStorage.setItem('vyaparone-demo', JSON.stringify({
+        ...data,
+        products: data.products.map(x =>
+          String(x.id) === String(p.id)
+            ? { ...x, stock: x.stock + qty, cost: unitCost }
+            : x
+        ),
+        purchases: [purchase, ...data.purchases]
+      }));
+
+      setPurchaseForm({ productId: '', qty: '', unitCost: '' });
+      notify('Purchase Supabase mein save ho gayi');
+    } catch (error) {
+      console.error('Cloud purchase error:', error);
+      notify('Purchase save nahi hui: ' + (error.message || 'Unknown error'));
+    }
   }
-  function addExpense(e) { e.preventDefault(); if (!expenseForm.title.trim() || +expenseForm.amount <= 0) return notify('Enter expense name and amount'); update({ ...data, expenses: [{ id: uid(), title: expenseForm.title, amount: +expenseForm.amount, date: new Date().toISOString() }, ...data.expenses] }); setExpenseForm({ title: '', amount: '' }); notify('Expense recorded'); }
+  async function addExpense(e) {
+    e.preventDefault();
+
+    const title = expenseForm.title.trim();
+    const amount = Number(expenseForm.amount);
+
+    if (!businessId) return notify('Business abhi load nahi hua. Dobara try karo.');
+    if (!title || !Number.isFinite(amount) || amount <= 0) {
+      return notify('Expense name aur valid amount enter karo');
+    }
+
+    try {
+      const { data: expenseId, error } = await supabase.rpc(
+        'record_business_expense',
+        {
+          p_business_id: businessId,
+          p_title: title,
+          p_amount: amount
+        }
+      );
+
+      if (error) throw error;
+
+      const expense = {
+        id: expenseId,
+        title,
+        amount,
+        date: new Date().toISOString()
+      };
+
+      update({
+        ...data,
+        expenses: [expense, ...data.expenses]
+      });
+
+      setExpenseForm({ title: '', amount: '' });
+      notify('Expense Supabase mein save ho gaya');
+    } catch (error) {
+      console.error('Cloud expense error:', error);
+      notify('Expense save nahi hua: ' + (error.message || 'Unknown error'));
+    }
+  }
   function saveBusiness(e) { e.preventDefault(); update({ ...data, business: businessForm }); notify('Business profile saved'); }
   function resetDemo() { if (confirm('Reset all local demo data? This cannot be undone.')) { localStorage.removeItem('vyaparone-demo'); setData(seed); setBusinessForm(seed.business); notify('Demo data reset'); } }
   function exportData() { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bizsaathi-demo-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
@@ -501,19 +600,3 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
