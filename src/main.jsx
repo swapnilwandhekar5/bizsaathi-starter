@@ -1,4 +1,4 @@
-import AuthGate from './AuthGate.jsx';
+﻿import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './style.css';
@@ -36,6 +36,9 @@ function App() {
   const [platformOverviewLoading, setPlatformOverviewLoading] = useState(false);
   const [platformOverviewError, setPlatformOverviewError] = useState('');
   const [statusUpdating, setStatusUpdating] = useState(null);
+  const [platformUsers, setPlatformUsers] = useState([]);
+  const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
+  const [platformUsersError, setPlatformUsersError] = useState('');
 
   useEffect(() => {
     if (!isPlatformAdmin || page !== 'Super Admin') return;
@@ -77,10 +80,12 @@ function App() {
 
         console.log('BizSaathi auth user ID:', user.id);
 
-        const { data, error } = await supabase.rpc('is_platform_admin');
-        if (error) throw error;
+       const { data, error } = await supabase.rpc('is_platform_admin');
 
-        if (!cancelled) setIsPlatformAdmin(data === true);
+
+if (error) throw error;
+
+if (!cancelled) setIsPlatformAdmin(data === true);
       } catch (error) {
         console.error('Platform admin check failed:', error);
         if (!cancelled) setIsPlatformAdmin(false);
@@ -232,7 +237,7 @@ function App() {
       try {
         const { data: rows, error } = await supabase
           .from('products')
-          .select('id, business_id, name, sku, quantity, sale_price')
+          .select('id, business_id, name, sku, quantity, sale_price, cost_price')
           .eq('business_id', businessId)
           .order('created_at', { ascending: false });
 
@@ -246,7 +251,7 @@ function App() {
               name: row.name,
               sku: row.sku || '',
               price: Number(row.sale_price || 0),
-              cost: 0,
+              cost: Number(row.cost_price || 0),
               stock: Number(row.quantity || 0),
               tax: 0
             }))
@@ -336,6 +341,21 @@ function App() {
   function update(next) { setData(next); localStorage.setItem('vyaparone-demo', JSON.stringify(next)); }
   function notify(msg) { setToast(msg); setTimeout(() => setToast(''), 2500); }
   const totalSales = data.sales.reduce((s, x) => s + x.total, 0);
+  const localDateKey = value => {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const todayKey = localDateKey(new Date());
+  const monthKey = todayKey.slice(0, 7);
+  const dailySales = data.sales.filter(s => s.date && localDateKey(s.date) === todayKey);
+  const monthlySales = data.sales.filter(s => s.date && localDateKey(s.date).slice(0, 7) === monthKey);
+  const dailySalesTotal = dailySales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+  const monthlySalesTotal = monthlySales.reduce((sum, s) => sum + Number(s.total || 0), 0);
+  const dailyExpenses = data.expenses.filter(e => e.date && new Date(e.date).toLocaleDateString('en-CA') === todayKey);
+  const monthlyExpenses = data.expenses.filter(e => e.date && new Date(e.date).toLocaleDateString('en-CA').slice(0, 7) === monthKey);
+  const dailyExpensesTotal = dailyExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const monthlyExpensesTotal = monthlyExpenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const totalPurchases = data.purchases.reduce((s, x) => s + x.total, 0);
   const totalExpenses = data.expenses.reduce((s, x) => s + x.amount, 0);
   const stockValue = data.products.reduce((s, p) => s + p.stock * p.cost, 0);
@@ -357,9 +377,10 @@ function App() {
           name: productForm.name.trim(),
           sku: productForm.sku.trim() || null,
           quantity: Number(productForm.stock) || 0,
-          sale_price: Number(productForm.price) || 0
+          sale_price: Number(productForm.price) || 0,
+          cost_price: Number(productForm.cost) || 0
         })
-        .select('id, business_id, name, sku, quantity, sale_price')
+        .select('id, business_id, name, sku, quantity, sale_price, cost_price')
         .single();
 
       if (error) throw error;
@@ -611,13 +632,33 @@ function App() {
   function saveBusiness(e) { e.preventDefault(); update({ ...data, business: businessForm }); notify('Business profile saved'); }
   function resetDemo() { if (confirm('Reset all local demo data? This cannot be undone.')) { localStorage.removeItem('vyaparone-demo'); setData(seed); setBusinessForm(seed.business); notify('Demo data reset'); } }
   function exportData() { const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'bizsaathi-demo-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
-  const nav = [{ group: 'WORKSPACE', items: ['Overview', 'Billing', 'Products & Stock', 'Purchases', 'Customers', 'Expenses', 'Reports'] }, { group: 'SETTINGS', items: ['Business Settings', 'Subscription'] }, ...(isPlatformAdmin ? [{ group: 'PLATFORM', items: ['Super Admin'] }] : [])];
+  useEffect(() => {
+    if (!isPlatformAdmin || page !== 'User Management') return;
+    let cancelled = false;
+    async function loadPlatformUsers() {
+      setPlatformUsersLoading(true);
+      setPlatformUsersError('');
+      try {
+        const { data, error } = await supabase.rpc('get_platform_users');
+        if (error) throw error;
+        if (!cancelled) setPlatformUsers(Array.isArray(data) ? data : []);
+      } catch (error) {
+        console.error('Platform users load failed:', error);
+        if (!cancelled) setPlatformUsersError(error.message || 'Users load nahi hue.');
+      } finally {
+        if (!cancelled) setPlatformUsersLoading(false);
+      }
+    }
+    loadPlatformUsers();
+    return () => { cancelled = true; };
+  }, [isPlatformAdmin, page]);
+  const nav = [{ group: 'WORKSPACE', items: ['Overview', 'Billing', 'Products & Stock', 'Purchases', 'Customers', 'Expenses', 'Reports'] }, { group: 'SETTINGS', items: ['Business Settings', 'Subscription'] }, ...(isPlatformAdmin ? [{ group: 'PLATFORM', items: ['Super Admin', 'User Management'] }] : [])];
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark">B</div><div><b>BizSaathi</b><small>BUSINESS OS</small></div></div>
       <div className="workspace"><div className="avatar">{(data.business.name || 'B').slice(0,1).toUpperCase()}</div><div className="workspace-copy"><b>{data.business.name || 'My Business'}</b><small>Demo workspace</small></div><span>*</span></div>
-      {nav.map(section => <div className="nav-section" key={section.group}><div className="nav-label">{section.group}</div>{section.items.map(item => <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{({'Overview':'O','Billing':'B','Products & Stock':'P','Purchases':'I','Customers':'C','Expenses':'Rs.','Reports':'R','Business Settings':'S','Subscription':'*','Super Admin':'A'})[item]}</span>{item}</button>)}</div>)}
+      {nav.map(section => <div className="nav-section" key={section.group}><div className="nav-label">{section.group}</div>{section.items.map(item => <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{({'Overview':'O','Billing':'B','Products & Stock':'P','Purchases':'I','Customers':'C','Expenses':'Rs.','Reports':'R','Business Settings':'S','Subscription':'*','Super Admin':'A','User Management':'U'})[item]}</span>{item}</button>)}</div>)}
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"></span> DEMO PLAN</div><p>Your local demo workspace is ready.</p><button onClick={() => setPage('Subscription')}>View plans <span>-&gt;</span></button></div><small className="version">BizSaathi Starter | v0.1</small></div>
     </aside>
     <main className="main-area">
@@ -629,8 +670,10 @@ function App() {
           {platformOverviewError && <div className="notice wide-notice">Dashboard error: {platformOverviewError}</div>}
           {!platformOverviewLoading && !platformOverviewError && platformOverview && <>
             <div className="stat-grid">
-              <Stat title="Registered businesses" value={platformOverview.total_businesses ?? 0} note="Businesses created on the platform" icon="B" tone="blue" />
-              <Stat title="Registered users" value={platformOverview.total_users ?? 0} note="Auth user accounts" icon="U" tone="purple" />
+              <Stat title="Registered businesses" value={platformOverview.total_businesses ?? (platformOverview.businesses || []).length} note="Businesses created on the platform" icon="B" tone="blue" />
+              <Stat title="Active businesses" value={(platformOverview.businesses || []).filter(b => b.status !== 'suspended').length} note="Currently active businesses" icon="A" tone="green" />
+              <Stat title="Suspended businesses" value={(platformOverview.businesses || []).filter(b => b.status === 'suspended').length} note="Businesses currently suspended" icon="S" tone="orange" />
+              <Stat title="Total recorded sales" value={money((platformOverview.businesses || []).reduce((sum, b) => sum + Number(b.total_sales || 0), 0))} note="Combined recorded business sales" icon="â‚¹" tone="purple" />
             </div>
             <section className="panel">
               <div className="panel-heading"><div><h2>Business directory</h2><p>Latest registered businesses</p></div></div>
@@ -639,6 +682,27 @@ function App() {
               </tbody></table>{!(platformOverview.businesses || []).length && <div className="empty-small">No businesses registered yet.</div>}</div>
             </section>
           </>}
+        </>}
+        {page === 'User Management' && isPlatformAdmin && <>
+          <PageHeading title="User Management" desc="Registered accounts, verification and business memberships." />
+          {platformUsersLoading && <div className="panel">Loading users...</div>}
+          {platformUsersError && <div className="notice wide-notice">User directory error: {platformUsersError}</div>}
+          {!platformUsersLoading && !platformUsersError && <section className="panel">
+            <div className="section-heading"><div><h2>Registered users</h2><p>{platformUsers.length} accounts</p></div></div>
+            <div className="table-wrap"><table>
+              <thead><tr><th>Email</th><th>Registered</th><th>Email verified</th><th>Business memberships</th><th>Platform admin</th></tr></thead>
+              <tbody>
+                {platformUsers.map((u) => <tr key={u.user_id}>
+                  <td><strong>{u.email || 'No email'}</strong><div className="muted">{u.user_id}</div></td>
+                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '-Â'}</td>
+                  <td>{u.email_confirmed ? 'Verified' : 'Not verified'}</td>
+                  <td>{Array.isArray(u.businesses) && u.businesses.length ? u.businesses.map((b) => `${b.business_name} (${b.role})`).join(', ') : 'No business'}</td>
+                  <td>{u.is_platform_admin ? 'Yes' : 'No'}</td>
+                </tr>)}
+                {platformUsers.length === 0 && <tr><td colSpan="5">No registered users found.</td></tr>}
+              </tbody>
+            </table></div>
+          </section>}
         </>}
         {page === 'Overview' && <>
           <div className="page-heading"><div><div className="eyebrow">BUSINESS OVERVIEW</div><h1>Good day, {data.business.owner || 'there'} <span>*</span></h1><p>Here's what's happening with your business today.</p></div><button className="primary-button" onClick={() => setPage('Billing')}>+ Create invoice</button></div>
@@ -658,7 +722,12 @@ function App() {
         {page === 'Purchases' && <><PageHeading title="Purchases" desc="Record stock received from suppliers."/><div className="two-col"><section className="panel form-panel"><h2>Record purchase</h2><form onSubmit={makePurchase} className="form-grid"><Field label="Product"><select required value={purchaseForm.productId} onChange={e=>{const p=data.products.find(x=>x.id===Number(e.target.value));setPurchaseForm({...purchaseForm,productId:e.target.value,unitCost:p?String(p.cost):''})}}><option value="">Select product</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field><div className="field-row"><Field label="Quantity"><input type="number" min="1" required value={purchaseForm.qty} onChange={e=>setPurchaseForm({...purchaseForm,qty:e.target.value})}/></Field><Field label="Unit cost (Rs.)"><input type="number" min="0" step="0.01" required value={purchaseForm.unitCost} onChange={e=>setPurchaseForm({...purchaseForm,unitCost:e.target.value})}/></Field></div><div className="invoice-preview"><span>Purchase total</span><b>{money((+purchaseForm.qty||0)*(+purchaseForm.unitCost||0))}</b></div><button className="primary-button full">Save purchase</button></form></section><section className="panel"><h2>Purchase history</h2><DataTable headers={['Product','Quantity','Total']} rows={data.purchases.map(p=>[p.productName,p.qty,money(p.total)])} empty="No purchases recorded yet."/></section></div></>}
         {page === 'Customers' && <><PageHeading title="Customers" desc="Keep customer contact details in one place."/><div className="two-col"><section className="panel form-panel"><h2>Add customer</h2><form className="form-grid" onSubmit={addCustomer}><Field label="Customer name"><input required value={customerForm.name} onChange={e=>setCustomerForm({...customerForm,name:e.target.value})}/></Field><Field label="Phone number"><input value={customerForm.phone} onChange={e=>setCustomerForm({...customerForm,phone:e.target.value})}/></Field><button className="primary-button full">+ Add customer</button></form></section><section className="panel"><h2>Customer directory</h2><DataTable headers={['Name','Phone']} rows={data.customers.map(c=>[c.name,c.phone||'-'])} empty="No customers added."/></section></div></>}
         {page === 'Expenses' && <><PageHeading title="Expenses" desc="Record operating expenses for a simple business summary."/><div className="two-col"><section className="panel form-panel"><h2>Add expense</h2><form className="form-grid" onSubmit={addExpense}><Field label="Expense name"><input required value={expenseForm.title} onChange={e=>setExpenseForm({...expenseForm,title:e.target.value})} placeholder="e.g. Packaging, Rent"/></Field><Field label="Amount (Rs.)"><input type="number" min="0.01" step="0.01" required value={expenseForm.amount} onChange={e=>setExpenseForm({...expenseForm,amount:e.target.value})}/></Field><button className="primary-button full">Save expense</button></form></section><section className="panel"><div className="panel-heading"><div><h2>Expense history</h2><p>Total recorded: {money(totalExpenses)}</p></div></div><DataTable headers={['Expense','Date','Amount']} rows={data.expenses.map(x=>[x.title,new Date(x.date).toLocaleDateString('en-IN'),money(x.amount)])} empty="No expenses recorded."/></section></div></>}
-        {page === 'Reports' && <><PageHeading title="Reports & Insights" desc="A quick view of sales, purchases, stock and recorded expenses."/><div className="stat-grid"><Stat title="Sales" value={money(totalSales)} note={`${data.sales.length} invoices`} icon="->" tone="green"/><Stat title="Purchases" value={money(totalPurchases)} note={`${data.purchases.length} entries`} icon="I" tone="blue"/><Stat title="Expenses" value={money(totalExpenses)} note={`${data.expenses.length} entries`} icon="Rs." tone="orange"/><Stat title="Estimated gross profit" value={money(grossProfit)} note="Before expenses and tax adjustments" icon="ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬ÂÃƒâ€¹Ã¢â‚¬Â " tone="purple"/></div><section className="panel report-panel"><div className="panel-heading"><div><h2>Business summary</h2><p>Totals from entries in this browser demo</p></div><button className="secondary-button" onClick={exportData}>Export JSON backup</button></div><div className="report-line"><span>Sales before tax</span><b>{money(data.sales.reduce((s,x)=>s+x.subtotal,0))}</b></div><div className="report-line"><span>Configured sales tax total</span><b>{money(data.sales.reduce((s,x)=>s+x.taxAmount,0))}</b></div><div className="report-line"><span>Gross profit estimate</span><b>{money(grossProfit)}</b></div><div className="report-line"><span>Recorded expenses</span><b>{money(totalExpenses)}</b></div><div className="report-line total-line"><span>Estimate after recorded expenses*</span><b>{money(grossProfit-totalExpenses)}</b></div><p className="footnote">*This is not a statutory financial statement. It excludes opening stock adjustments, returns, other costs, and full double-entry accounting.</p></section></>}
+        {page === 'Reports' && <><PageHeading title="Reports & Insights" desc="A quick view of sales, purchases, stock and recorded expenses."/><div className="stat-grid"><Stat title="Sales" value={money(totalSales)} note={`${data.sales.length} invoices`} icon="->" tone="green"/><Stat title="Purchases" value={money(totalPurchases)} note={`${data.purchases.length} entries`} icon="I" tone="blue"/><Stat title="Expenses" value={money(totalExpenses)} note={`${data.expenses.length} entries`} icon="Rs." tone="orange"/><Stat title="Estimated gross profit" value={money(grossProfit)} note="Before expenses and tax adjustments" icon="Rs." tone="purple"/></div><section className="panel report-panel"><div className="panel-heading"><div><h2>Business summary</h2><p>Totals from entries in this browser demo</p></div><button className="secondary-button" onClick={exportData}>Export JSON backup</button></div><div className="stat-grid">
+  <Stat title="Today's sales" value={money(dailySalesTotal)} note={`${dailySales.length} invoices today`} icon="->" tone="green"/>
+  <Stat title="This month's sales" value={money(monthlySalesTotal)} note={`${monthlySales.length} invoices this month`} icon="->" tone="blue"/>
+  <Stat title="Today's expenses" value={money(dailyExpensesTotal)} note={`${dailyExpenses.length} entries today`} icon="Rs." tone="orange"/>
+  <Stat title="This month's expenses" value={money(monthlyExpensesTotal)} note={`${monthlyExpenses.length} entries this month`} icon="Rs." tone="purple"/>
+  </div><div className="report-line"><span>Sales before tax</span><b>{money(data.sales.reduce((s,x)=>s+x.subtotal,0))}</b></div><div className="report-line"><span>Configured sales tax total</span><b>{money(data.sales.reduce((s,x)=>s+x.taxAmount,0))}</b></div><div className="report-line"><span>Gross profit estimate</span><b>{money(grossProfit)}</b></div><div className="report-line"><span>Recorded expenses</span><b>{money(totalExpenses)}</b></div><div className="report-line total-line"><span>Estimate after recorded expenses*</span><b>{money(grossProfit-totalExpenses)}</b></div><p className="footnote">*This is not a statutory financial statement. It excludes opening stock adjustments, returns, other costs, and full double-entry accounting.</p></section></>}
         {page === 'Business Settings' && <><PageHeading title="Business settings" desc="Configure the profile shown in your workspace."/><section className="panel settings-panel"><h2>Business profile</h2><form className="form-grid settings-form" onSubmit={saveBusiness}><Field label="Business / company name"><input required value={businessForm.name} onChange={e=>setBusinessForm({...businessForm,name:e.target.value})}/></Field><Field label="Owner name"><input value={businessForm.owner} onChange={e=>setBusinessForm({...businessForm,owner:e.target.value})}/></Field><Field label="GSTIN (optional for demo)"><input value={businessForm.gstin} onChange={e=>setBusinessForm({...businessForm,gstin:e.target.value.toUpperCase()})} maxLength="15" placeholder="15-character GSTIN"/></Field><div className="notice">GSTIN is stored only in this browser demo. GST validation, invoice compliance and secure server storage are not implemented yet.</div><button className="primary-button">Save business profile</button></form></section><section className="panel danger-panel"><div><h2>Demo data</h2><p>Export a backup before resetting your local demo data.</p></div><div className="button-row"><button className="secondary-button" onClick={exportData}>Export backup</button><button className="danger-button" onClick={resetDemo}>Reset demo data</button></div></section></>}
         {page === 'Subscription' && <><PageHeading title="Plans & subscription" desc="Subscription management will be connected after the secure SaaS backend is ready."/><div className="pricing-grid"><Plan name="Starter" price="Free" desc="For testing the workflow" features={['Single demo workspace','Products and stock','Basic sales invoices','Local browser data']} current/><Plan name="Growth" price="Rs.499" period="/month (proposed)" desc="For small businesses" features={['Cloud sync and secure login','Inventory and purchase records','Reports and team access','Priority support']} /><Plan name="Business" price="Rs.999" period="/month (proposed)" desc="For growing teams" features={['Multiple users and locations','Advanced reports','Role-based permissions','Expanded usage limits']} /></div><div className="notice wide-notice">These prices are placeholders, not active offers. No subscription is charged in this starter app. Payment gateway and plan enforcement are not connected.</div></>}
       </div>
