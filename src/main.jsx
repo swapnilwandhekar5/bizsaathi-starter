@@ -281,11 +281,14 @@ if (!cancelled) setIsPlatformAdmin(data === true);
 
     async function loadTransactions() {
       try {
-        const [salesResult, purchasesResult, expensesResult] = await Promise.all([
+        const [salesResult, saleItemsResult, purchasesResult, expensesResult] = await Promise.all([
           supabase.from('sales')
             .select('id, business_id, invoice_number, customer_name, total, subtotal, taxable_amount, tax_amount, cgst_amount, sgst_amount, igst_amount, seller_name, seller_address, seller_gstin, seller_state_code, customer_address, customer_gstin, customer_state_code, created_at')
             .eq('business_id', businessId)
             .order('created_at', { ascending: false }),
+          supabase.from('sale_items')
+            .select('id, sale_id, business_id, product_name, quantity, unit_price, unit_cost, tax_rate, hsn_code, taxable_amount, tax_amount, cgst_amount, sgst_amount, igst_amount')
+            .eq('business_id', businessId),
           supabase.from('purchases')
             .select('id, business_id, product_id, product_name, quantity, unit_cost, total, created_at')
             .eq('business_id', businessId)
@@ -297,35 +300,63 @@ if (!cancelled) setIsPlatformAdmin(data === true);
         ]);
 
         if (salesResult.error) throw salesResult.error;
+        if (saleItemsResult.error) throw saleItemsResult.error;
         if (purchasesResult.error) throw purchasesResult.error;
         if (expensesResult.error) throw expensesResult.error;
         if (cancelled) return;
 
+        const saleItemsBySaleId = new Map();
+
+        for (const item of (saleItemsResult.data || [])) {
+          const items = saleItemsBySaleId.get(item.sale_id) || [];
+          items.push({
+            id: item.id,
+            productName: item.product_name || 'Sale item',
+            qty: Number(item.quantity || 0),
+            unitPrice: Number(item.unit_price || 0),
+            unitCost: Number(item.unit_cost || 0),
+            taxRate: Number(item.tax_rate || 0),
+            hsnCode: item.hsn_code || '',
+            subtotal: Number(item.taxable_amount || 0),
+            taxAmount: Number(item.tax_amount || 0),
+            cgstAmount: Number(item.cgst_amount || 0),
+            sgstAmount: Number(item.sgst_amount || 0),
+            igstAmount: Number(item.igst_amount || 0)
+          });
+          saleItemsBySaleId.set(item.sale_id, items);
+        }
+
         setData(previous => ({
           ...previous,
-          sales: (salesResult.data || []).map(row => ({
-            id: row.id,
-            invoice: row.invoice_number || '',
-            date: row.created_at,
-            customerName: row.customer_name || '',
-            productName: '',
-            qty: 0,
-            unitPrice: 0,
-            unitCost: 0,
-            subtotal: Number(row.subtotal ?? row.taxable_amount ?? row.total ?? 0),
-            taxAmount: Number(row.tax_amount || 0),
-            cgstAmount: Number(row.cgst_amount || 0),
-            sgstAmount: Number(row.sgst_amount || 0),
-            igstAmount: Number(row.igst_amount || 0),
-            total: Number(row.total || 0),
-            sellerName: row.seller_name || '',
-            sellerAddress: row.seller_address || '',
-            sellerGstin: row.seller_gstin || '',
-            sellerStateCode: row.seller_state_code || '',
-            customerAddress: row.customer_address || '',
-            customerGstin: row.customer_gstin || '',
-            customerStateCode: row.customer_state_code || ''
-          })),
+          sales: (salesResult.data || []).map(row => {
+            const items = saleItemsBySaleId.get(row.id) || [];
+            const firstItem = items[0] || {};
+
+            return {
+              id: row.id,
+              invoice: row.invoice_number || '',
+              date: row.created_at,
+              customerName: row.customer_name || '',
+              items,
+              productName: items.map(item => item.productName).join(', '),
+              qty: items.reduce((sum, item) => sum + item.qty, 0),
+              unitPrice: Number(firstItem.unitPrice || 0),
+              unitCost: Number(firstItem.unitCost || 0),
+              subtotal: Number(row.subtotal ?? row.taxable_amount ?? row.total ?? 0),
+              taxAmount: Number(row.tax_amount || 0),
+              cgstAmount: Number(row.cgst_amount || 0),
+              sgstAmount: Number(row.sgst_amount || 0),
+              igstAmount: Number(row.igst_amount || 0),
+              total: Number(row.total || 0),
+              sellerName: row.seller_name || '',
+              sellerAddress: row.seller_address || '',
+              sellerGstin: row.seller_gstin || '',
+              sellerStateCode: row.seller_state_code || '',
+              customerAddress: row.customer_address || '',
+              customerGstin: row.customer_gstin || '',
+              customerStateCode: row.customer_state_code || ''
+            };
+          }),
           purchases: (purchasesResult.data || []).map(row => ({
             id: row.id,
             date: row.created_at,
@@ -341,13 +372,13 @@ if (!cancelled) setIsPlatformAdmin(data === true);
             date: row.created_at
           }))
         }));
+
         console.log('BizSaathi transactions loaded from Supabase');
       } catch (error) {
         console.error('Transaction load error:', error);
         if (!cancelled) notify('Transactions load nahi hue: ' + error.message);
       }
     }
-
     loadTransactions();
 
     return () => {
@@ -803,8 +834,38 @@ if (!cancelled) setIsPlatformAdmin(data === true);
             <section><h3>Seller</h3><b>{selectedInvoice.sellerName || data.business.name || 'Business name not set'}</b><p>{selectedInvoice.sellerAddress || data.business.address || '-'}</p><p><b>GSTIN:</b> {selectedInvoice.sellerGstin || data.business.gstin || '-'}</p><p><b>State code:</b> {selectedInvoice.sellerStateCode || data.business.state_code || '-'}</p></section>
             <section><h3>Bill To</h3><b>{selectedInvoice.customerName || 'Walk-in customer'}</b><p>{selectedInvoice.customerAddress || '-'}</p><p><b>GSTIN:</b> {selectedInvoice.customerGstin || '-'}</p><p><b>State code:</b> {selectedInvoice.customerStateCode || '-'}</p></section>
           </div>
-          <table className="invoice-items-table"><thead><tr><th>Description</th><th>Qty</th><th>Taxable amount</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total</th></tr></thead>
-          <tbody><tr><td>{selectedInvoice.productName || 'Sale items'}</td><td>{selectedInvoice.qty ?? '-'}</td><td>{money(selectedInvoice.subtotal || 0)}</td><td>{money(selectedInvoice.cgstAmount || 0)}</td><td>{money(selectedInvoice.sgstAmount || 0)}</td><td>{money(selectedInvoice.igstAmount || 0)}</td><td>{money(selectedInvoice.total || 0)}</td></tr></tbody></table>
+          <table className="invoice-items-table">
+            <thead><tr><th>#</th><th>Description</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Taxable value</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total</th></tr></thead>
+            <tbody>
+              {(selectedInvoice.items?.length ? selectedInvoice.items : [{
+                productName: selectedInvoice.productName || 'Sale items',
+                hsnCode: '',
+                qty: selectedInvoice.qty ?? 0,
+                unitPrice: selectedInvoice.unitPrice ?? 0,
+                subtotal: selectedInvoice.subtotal || 0,
+                cgstAmount: selectedInvoice.cgstAmount || 0,
+                sgstAmount: selectedInvoice.sgstAmount || 0,
+                igstAmount: selectedInvoice.igstAmount || 0,
+                taxAmount: selectedInvoice.taxAmount || 0,
+                total: selectedInvoice.total || 0
+              }]).map((item, index) => {
+                const itemTax = Number(item.cgstAmount || 0) + Number(item.sgstAmount || 0) + Number(item.igstAmount || 0);
+                const itemTotal = Number(item.subtotal || 0) + itemTax;
+                return <tr key={item.id || index}>
+                  <td>{index + 1}</td>
+                  <td>{item.productName || 'Sale item'}</td>
+                  <td>{item.hsnCode || '-'}</td>
+                  <td>{item.qty ?? 0}</td>
+                  <td>{money(item.unitPrice || 0)}</td>
+                  <td>{money(item.subtotal || 0)}</td>
+                  <td>{money(item.cgstAmount || 0)}</td>
+                  <td>{money(item.sgstAmount || 0)}</td>
+                  <td>{money(item.igstAmount || 0)}</td>
+                  <td>{money(item.total ?? itemTotal)}</td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
           <div className="invoice-totals"><p>Taxable amount: <b>{money(selectedInvoice.subtotal || 0)}</b></p><p>Total GST: <b>{money(selectedInvoice.taxAmount || 0)}</b></p><p className="invoice-grand-total">Invoice total: {money(selectedInvoice.total || 0)}</p></div>
           <p className="invoice-note">Please verify seller, buyer and tax details before issuing this invoice.</p>
         </div>
@@ -821,6 +882,10 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
+
+
+
 
 
 
