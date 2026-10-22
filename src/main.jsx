@@ -746,6 +746,13 @@ if (!cancelled) setIsPlatformAdmin(data === true);
       {nav.map(section => <div className="nav-section" key={section.group}><div className="nav-label">{section.group}</div>{section.items.map(item => <button key={item} className={`nav-item ${page === item ? 'active' : ''}`} onClick={() => setPage(item)}><span className="nav-icon">{({'Overview':'O','Billing':'B','Products & Stock':'P','Purchases':'I','Customers':'C','Expenses':'Rs.','Reports':'R','Business Settings':'S','Subscription':'*','Super Admin':'A','User Management':'U'})[item]}</span>{item}</button>)}</div>)}
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"></span> DEMO PLAN</div><p>Your local demo workspace is ready.</p><button onClick={() => setPage('Subscription')}>View plans <span>-&gt;</span></button></div><small className="version">BizSaathi Starter | v0.1</small></div>
     </aside>
+    <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
+      <button type="button" className={page === 'Overview' ? 'active' : ''} onClick={() => setPage('Overview')}><span>⌂</span><small>Home</small></button>
+      <button type="button" className={page === 'Billing' ? 'active' : ''} onClick={() => setPage('Billing')}><span>▣</span><small>Billing</small></button>
+      <button type="button" className={page === 'Products & Stock' ? 'active' : ''} onClick={() => setPage('Products & Stock')}><span>▦</span><small>Products</small></button>
+      <button type="button" className={page === 'Customers' ? 'active' : ''} onClick={() => setPage('Customers')}><span>♙</span><small>Customers</small></button>
+      <button type="button" className="mobile-more" onClick={() => setPage('Reports')}><span>•••</span><small>More</small></button>
+    </nav>
     <main className="main-area">
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
       <div className="content">
@@ -882,6 +889,7 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
 
 
 
