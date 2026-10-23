@@ -1,4 +1,4 @@
-import './invoice-print.css';
+﻿import './invoice-print.css';
 import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -30,7 +30,7 @@ function App() {
   const [productForm, setProductForm] = useState({ name: '', sku: '', price: '', cost: '', stock: '', tax: '0', hsn: '' });
   const [customerForm, setCustomerForm] = useState({ name: '', phone: '', address: '', gstin: '', state_code: '' });
   const [expenseForm, setExpenseForm] = useState({ title: '', amount: '' });
-  const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', customerName: '', qty: '1' });
+  const [saleForm, setSaleForm] = useState({ productId: '', customerId: '', customerName: '', qty: '1', paymentMethod: 'credit', amountPaid: '0', dueDate: '' });
   const [purchaseForm, setPurchaseForm] = useState({ productId: '', qty: '1', unitCost: '' });
   const [businessForm, setBusinessForm] = useState(data.business);
   const [search, setSearch] = useState('');
@@ -520,16 +520,36 @@ if (!cancelled) setIsPlatformAdmin(data === true);
     }
 
     const customerName = saleForm.customerName.trim() || 'Walk-in Customer';
+    const paymentMethod = saleForm.paymentMethod;
+    const amountPaid = Number(saleForm.amountPaid);
+    const allowedPaymentMethods = ['cash', 'upi', 'bank', 'credit'];
+
+    if (!allowedPaymentMethods.includes(paymentMethod)) {
+      return notify('Please select a valid payment method');
+    }
+
+    if (!Number.isFinite(amountPaid) || amountPaid < 0) {
+      return notify('Received amount valid hona chahiye');
+    }
+
+    if (amountPaid > Number(salePreview)) {
+      return notify('Received amount invoice total se zyada nahi ho sakta');
+    }
+
+    const dueDate = saleForm.dueDate || null;
 
     try {
       const { data: saleId, error: saleError } = await supabase.rpc(
-        'create_business_sale_with_gst',
+        'create_business_sale_with_payment',
         {
           p_business_id: businessId,
           p_product_id: p.id,
           p_quantity: qty,
           p_customer_name: customerName,
-          p_customer_id: saleForm.customerId || null
+          p_customer_id: saleForm.customerId || null,
+          p_payment_method: paymentMethod,
+          p_amount_paid: amountPaid,
+          p_due_date: dueDate
         }
       );
 
@@ -538,7 +558,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
 
       const { data: savedSale, error: fetchError } = await supabase
         .from('sales')
-        .select('id, invoice_number, created_at, total, subtotal, taxable_amount, tax_amount, cgst_amount, sgst_amount, igst_amount, seller_name, seller_address, seller_gstin, seller_state_code, customer_address, customer_gstin, customer_state_code')
+        .select('id, invoice_number, created_at, total, subtotal, taxable_amount, tax_amount, cgst_amount, sgst_amount, igst_amount, seller_name, seller_address, seller_gstin, seller_state_code, customer_address, customer_gstin, customer_state_code, customer_id, payment_method, amount_paid, due_date')
         .eq('id', saleId)
         .eq('business_id', businessId)
         .single();
@@ -567,7 +587,15 @@ if (!cancelled) setIsPlatformAdmin(data === true);
         sellerStateCode: savedSale.seller_state_code || '',
         customerAddress: savedSale.customer_address || '',
         customerGstin: savedSale.customer_gstin || '',
-        customerStateCode: savedSale.customer_state_code || ''
+        customerStateCode: savedSale.customer_state_code || '',
+        customerId: savedSale.customer_id || null,
+        paymentMethod: savedSale.payment_method || 'credit',
+        amountPaid: Number(savedSale.amount_paid || 0),
+        dueDate: savedSale.due_date || null,
+        balanceDue: Math.max(
+          0,
+          Number(savedSale.total || 0) - Number(savedSale.amount_paid || 0)
+        )
       };
 
       update({
@@ -580,7 +608,13 @@ if (!cancelled) setIsPlatformAdmin(data === true);
         sales: [sale, ...data.sales]
       });
 
-      setSaleForm({ ...saleForm, qty: '1' });
+      setSaleForm({
+        ...saleForm,
+        qty: '1',
+        paymentMethod: 'credit',
+        amountPaid: '0',
+        dueDate: ''
+      });
       notify('Cloud invoice ' + sale.invoice + ' created');
     } catch (error) {
       console.error('Cloud sale error:', error);
@@ -778,7 +812,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
               <Stat title="Registered businesses" value={platformOverview.total_businesses ?? (platformOverview.businesses || []).length} note="Businesses created on the platform" icon="B" tone="blue" />
               <Stat title="Active businesses" value={(platformOverview.businesses || []).filter(b => b.status !== 'suspended').length} note="Currently active businesses" icon="A" tone="green" />
               <Stat title="Suspended businesses" value={(platformOverview.businesses || []).filter(b => b.status === 'suspended').length} note="Businesses currently suspended" icon="S" tone="orange" />
-              <Stat title="Total recorded sales" value={money((platformOverview.businesses || []).reduce((sum, b) => sum + Number(b.total_sales || 0), 0))} note="Combined recorded business sales" icon="Ã¢â€šÂ¹" tone="purple" />
+              <Stat title="Total recorded sales" value={money((platformOverview.businesses || []).reduce((sum, b) => sum + Number(b.total_sales || 0), 0))} note="Combined recorded business sales" icon="ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¹" tone="purple" />
             </div>
             <section className="panel">
               <div className="panel-heading"><div><h2>Business directory</h2><p>Latest registered businesses</p></div></div>
@@ -822,7 +856,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
           <div className="quick-grid"><Quick title="Create invoice" desc="Record a sale and update stock" icon="+" onClick={() => setPage('Billing')} /><Quick title="Add a product" desc="Manage items and stock levels" icon="P" onClick={() => setPage('Products & Stock')} /><Quick title="Record purchase" desc="Add incoming inventory" icon="I" onClick={() => setPage('Purchases')} /><Quick title="View reports" desc="Track sales and business totals" icon="R" onClick={() => setPage('Reports')} /></div>
           <p className="footnote">*Gross profit is a simple estimate based on recorded sales and product cost. It excludes taxes, returns, opening stock adjustments and other accounting adjustments.</p>
         </>}
-        {page === 'Billing' && <><PageHeading title="Billing & Sales" desc="Create invoices and keep your sales record up to date." /><div className="two-col"><section className="panel form-panel"><h2>Create sales invoice</h2><p className="muted">Stock is reduced when a demo invoice is recorded.</p><form onSubmit={makeSale} className="form-grid"><Field label="Product"><select required value={saleForm.productId} onChange={e => setSaleForm({...saleForm, productId:e.target.value})}><option value="">Select product</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name} | Stock {p.stock}</option>)}</select></Field><Field label="Saved customer (optional)"><select value={saleForm.customerId} onChange={e=>{const customer=data.customers.find(c=>String(c.id)===e.target.value);setSaleForm({...saleForm,customerId:e.target.value,customerName:customer?customer.name:saleForm.customerId?'':saleForm.customerName})}}><option value="">Walk-in / manual customer</option>{data.customers.filter(c=>typeof c.id === 'string').map(c=><option key={c.id} value={c.id}>{c.name}{c.gstin?' | GSTIN: '+c.gstin:''}</option>)}</select></Field><Field label="Customer name"><input value={saleForm.customerName} onChange={e=>setSaleForm({...saleForm,customerName:e.target.value})} placeholder="Enter customer name (optional)" maxLength={150}/></Field><Field label="Quantity"><input type="number" min="1" required value={saleForm.qty} onChange={e=>setSaleForm({...saleForm,qty:e.target.value})}/></Field><div className="invoice-preview"><span>Estimated invoice total (incl. configured tax)</span><b>{money(salePreview)}</b></div><button className="primary-button full" type="submit">Create invoice -&gt;</button></form></section><section className="panel"><div className="panel-heading"><div><h2>Invoice history</h2><p>Most recent first</p></div></div><DataTable headers={['Invoice','Customer','Taxable Amount','CGST','SGST','IGST','Total','Action']} rows={data.sales.map(s=>[s.invoice,s.customerName,money(s.subtotal),money(s.cgstAmount || 0),money(s.sgstAmount || 0),money(s.igstAmount || 0),money(s.total),<button type="button" className="secondary-button" onClick={() => setSelectedInvoice(s)}>View / Print</button>])} empty="No invoices yet." /></section></div></>}
+        {page === 'Billing' && <><PageHeading title="Billing & Sales" desc="Create invoices and keep your sales record up to date." /><div className="two-col"><section className="panel form-panel"><h2>Create sales invoice</h2><p className="muted">Stock is reduced when a demo invoice is recorded.</p><form onSubmit={makeSale} className="form-grid"><Field label="Product"><select required value={saleForm.productId} onChange={e => setSaleForm({...saleForm, productId:e.target.value})}><option value="">Select product</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name} | Stock {p.stock}</option>)}</select></Field><Field label="Saved customer (optional)"><select value={saleForm.customerId} onChange={e=>{const customer=data.customers.find(c=>String(c.id)===e.target.value);setSaleForm({...saleForm,customerId:e.target.value,customerName:customer?customer.name:saleForm.customerId?'':saleForm.customerName})}}><option value="">Walk-in / manual customer</option>{data.customers.filter(c=>typeof c.id === 'string').map(c=><option key={c.id} value={c.id}>{c.name}{c.gstin?' | GSTIN: '+c.gstin:''}</option>)}</select></Field><Field label="Customer name"><input value={saleForm.customerName} onChange={e=>setSaleForm({...saleForm,customerName:e.target.value})} placeholder="Enter customer name (optional)" maxLength={150}/></Field><Field label="Quantity"><input type="number" min="1" required value={saleForm.qty} onChange={e=>setSaleForm({...saleForm,qty:e.target.value})}/></Field><div className="invoice-preview"><span>Estimated invoice total (incl. configured tax)</span><b>{money(salePreview)}</b></div><Field label="Payment method"><select value={saleForm.paymentMethod} onChange={e=>setSaleForm({...saleForm,paymentMethod:e.target.value})}><option value="cash">Cash</option><option value="upi">UPI</option><option value="bank">Bank</option><option value="credit">Udhar</option></select></Field><Field label="Amount received (Rs.)"><input type="number" min="0" max={salePreview} step="0.01" value={saleForm.amountPaid} onChange={e=>setSaleForm({...saleForm,amountPaid:e.target.value})} required /></Field><Field label="Due date (optional)"><input type="date" value={saleForm.dueDate} onChange={e=>setSaleForm({...saleForm,dueDate:e.target.value})}/></Field><div className="invoice-preview"><span>Balance due (preview)</span><b>{money(Math.max(0,salePreview-(Number(saleForm.amountPaid)||0)))}</b></div><button className="primary-button full" type="submit">Create invoice -&gt;</button></form></section><section className="panel"><div className="panel-heading"><div><h2>Invoice history</h2><p>Most recent first</p></div></div><DataTable headers={['Invoice','Customer','Taxable Amount','CGST','SGST','IGST','Total','Action']} rows={data.sales.map(s=>[s.invoice,s.customerName,money(s.subtotal),money(s.cgstAmount || 0),money(s.sgstAmount || 0),money(s.igstAmount || 0),money(s.total),<button type="button" className="secondary-button" onClick={() => setSelectedInvoice(s)}>View / Print</button>])} empty="No invoices yet." /></section></div></>}
         {page === 'Products & Stock' && <><PageHeading title="Products & Inventory" desc="Manage product details, selling price and available stock." /><div className="two-col inventory-layout"><section className="panel form-panel"><h2>Add product</h2><form onSubmit={addProduct} className="form-grid"><Field label="Product name"><input required value={productForm.name} onChange={e=>setProductForm({...productForm,name:e.target.value})} placeholder="e.g. Cotton T-shirt"/></Field><Field label="SKU / item code"><input value={productForm.sku} onChange={e=>setProductForm({...productForm,sku:e.target.value})} placeholder="Optional"/></Field><div className="field-row"><Field label="Selling price (Rs.)"><input type="number" min="0" step="0.01" required value={productForm.price} onChange={e=>setProductForm({...productForm,price:e.target.value})}/></Field><Field label="Cost price (Rs.)"><input type="number" min="0" step="0.01" required value={productForm.cost} onChange={e=>setProductForm({...productForm,cost:e.target.value})}/></Field></div><div className="field-row"><Field label="Opening stock"><input type="number" min="0" step="1" required value={productForm.stock} onChange={e=>setProductForm({...productForm,stock:e.target.value})}/></Field><Field label="Tax rate (%)"><select value={productForm.tax} onChange={e=>setProductForm({...productForm,tax:e.target.value})}><option value="0">0%</option><option value="5">5%</option><option value="12">12%</option><option value="18">18%</option><option value="28">28%</option></select></Field></div><Field label="HSN Code (optional)"><input value={productForm.hsn} onChange={e=>setProductForm({...productForm,hsn:e.target.value})} maxLength={8} placeholder="Enter HSN code"/></Field>
         <button className="primary-button full" type="submit">+ Add product</button></form></section><section className="panel"><div className="panel-heading wrap-heading"><div><h2>Product catalogue</h2><p>{data.products.length} products in your workspace</p></div><input className="search-input" placeholder="Search products..." value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="table-wrap"><table><thead><tr><th>PRODUCT</th><th>SKU</th><th>PRICE</th><th>STOCK</th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td><b>{p.name}</b><small className="table-sub">Cost {money(p.cost)} | Tax {p.tax}%</small></td><td>{p.sku || '-'}</td><td>{money(p.price)}</td><td><span className={`stock-pill ${p.stock<=5?'low':''}`}>{p.stock} units</span></td></tr>)}</tbody></table>{!filteredProducts.length&&<div className="empty-small">No matching products.</div>}</div></section></div></>}
         {page === 'Purchases' && <><PageHeading title="Purchases" desc="Record stock received from suppliers."/><div className="two-col"><section className="panel form-panel"><h2>Record purchase</h2><form onSubmit={makePurchase} className="form-grid"><Field label="Product"><select required value={purchaseForm.productId} onChange={e=>{const p=data.products.find(x=>x.id===Number(e.target.value));setPurchaseForm({...purchaseForm,productId:e.target.value,unitCost:p?String(p.cost):''})}}><option value="">Select product</option>{data.products.map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field><div className="field-row"><Field label="Quantity"><input type="number" min="1" required value={purchaseForm.qty} onChange={e=>setPurchaseForm({...purchaseForm,qty:e.target.value})}/></Field><Field label="Unit cost (Rs.)"><input type="number" min="0" step="0.01" required value={purchaseForm.unitCost} onChange={e=>setPurchaseForm({...purchaseForm,unitCost:e.target.value})}/></Field></div><div className="invoice-preview"><span>Purchase total</span><b>{money((+purchaseForm.qty||0)*(+purchaseForm.unitCost||0))}</b></div><button className="primary-button full">Save purchase</button></form></section><section className="panel"><h2>Purchase history</h2><DataTable headers={['Product','Quantity','Total']} rows={data.purchases.map(p=>[p.productName,p.qty,money(p.total)])} empty="No purchases recorded yet."/></section></div></>}
@@ -902,6 +936,13 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
+
+
+
+
+
+
 
 
 

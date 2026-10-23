@@ -186,15 +186,34 @@ const styles = {
   },
   center: { padding: 40, fontFamily: 'Arial, sans-serif' },
   accountBar: {
-    display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
-    gap: 12, padding: '10px 18px', background: '#fff',
-    borderBottom: '1px solid #e1e9e2', fontSize: 13
+    position: 'sticky',
+    top: 0,
+    zIndex: 10000,
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+    padding: '12px 20px',
+    background: '#143c2d',
+    color: '#ffffff',
+    borderBottom: '2px solid #d9f77b',
+    fontSize: 13,
+    boxSizing: 'border-box',
+    width: '100%'
   },
   logout: {
-    border: '1px solid #ccd8cf', borderRadius: 8, padding: '7px 12px',
-    background: '#fff', cursor: 'pointer'
+    border: '1px solid #d9f77b',
+    borderRadius: 8,
+    padding: '9px 16px',
+    background: '#d9f77b',
+    color: '#143c2d',
+    fontWeight: 700,
+    cursor: 'pointer',
+    flexShrink: 0
   }
 };
+
 
 
 
