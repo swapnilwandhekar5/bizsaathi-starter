@@ -1,4 +1,4 @@
-﻿import './invoice-print.css';
+import './invoice-print.css';
 import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -20,6 +20,11 @@ const uid = () => Date.now() + Math.floor(Math.random() * 1000);
 function App() {
   const [data, setData] = useState(readState);
   const [page, setPage] = useState('Overview');
+  const [theme, setTheme] = useState(() => localStorage.getItem('bizsaathi-theme') || 'light');
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('bizsaathi-theme', theme);
+  }, [theme]);
   const [toast, setToast] = useState('');
   const [productForm, setProductForm] = useState({ name: '', sku: '', price: '', cost: '', stock: '', tax: '0', hsn: '' });
   const [customerForm, setCustomerForm] = useState({ name: '', phone: '', address: '', gstin: '', state_code: '' });
@@ -754,7 +759,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
       <button type="button" className="mobile-more" onClick={() => setPage('Reports')}><span>•••</span><small>More</small></button>
     </nav>
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button theme-toggle" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '☾' : '☀'}</button><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
       <div className="content">
         {page === 'Super Admin' && isPlatformAdmin && <>
           <PageHeading title="Super Admin Dashboard" desc="Platform overview of registered businesses and user accounts." />
