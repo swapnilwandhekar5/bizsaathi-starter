@@ -1,4 +1,4 @@
-﻿import './invoice-print.css';
+import './invoice-print.css';
 import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -753,11 +753,11 @@ if (!cancelled) setIsPlatformAdmin(data === true);
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"></span> DEMO PLAN</div><p>Your local demo workspace is ready.</p><button onClick={() => setPage('Subscription')}>View plans <span>-&gt;</span></button></div><small className="version">BizSaathi Starter | v0.1</small></div>
     </aside>
     <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-      <button type="button" className={page === 'Overview' ? 'active' : ''} onClick={() => setPage('Overview')}><span>âŒ‚</span><small>Home</small></button>
-      <button type="button" className={page === 'Billing' ? 'active' : ''} onClick={() => setPage('Billing')}><span>â–£</span><small>Billing</small></button>
-      <button type="button" className={page === 'Products & Stock' ? 'active' : ''} onClick={() => setPage('Products & Stock')}><span>â–¦</span><small>Products</small></button>
-      <button type="button" className={page === 'Customers' ? 'active' : ''} onClick={() => setPage('Customers')}><span>â™™</span><small>Customers</small></button>
-      <button type="button" className={`mobile-more ${showMobileMore ? 'active' : ''}`} onClick={() => setShowMobileMore(current => !current)} aria-expanded={showMobileMore}><span>•••</span><small>More</small></button>
+      <button type="button" className={page === 'Overview' ? 'active' : ''} onClick={() => setPage('Overview')}><span>H</span><small>Home</small></button>
+      <button type="button" className={page === 'Billing' ? 'active' : ''} onClick={() => setPage('Billing')}><span>B</span><small>Billing</small></button>
+      <button type="button" className={page === 'Products & Stock' ? 'active' : ''} onClick={() => setPage('Products & Stock')}><span>P</span><small>Products</small></button>
+      <button type="button" className={page === 'Customers' ? 'active' : ''} onClick={() => setPage('Customers')}><span>C</span><small>Customers</small></button>
+      <button type="button" className={`mobile-more ${showMobileMore ? 'active' : ''}`} onClick={() => setShowMobileMore(current => !current)} aria-expanded={showMobileMore}><span>...</span><small>More</small></button>
     </nav>
     {showMobileMore && <div className="mobile-more-menu">
       {['Reports', 'Business Settings', 'Subscription'].map(item => <button key={item} type="button" onClick={() => { setPage(item); setShowMobileMore(false); }}>{item}</button>)}
@@ -767,7 +767,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
       </>}
     </div>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button theme-toggle" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>{theme === 'light' ? 'â˜¾' : 'â˜€'}</button><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button theme-toggle" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>{theme === 'light' ? 'Light' : 'Dark'}</button><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
       <div className="content">
         {page === 'Super Admin' && isPlatformAdmin && <>
           <PageHeading title="Super Admin Dashboard" desc="Platform overview of registered businesses and user accounts." />
@@ -799,7 +799,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
               <tbody>
                 {platformUsers.map((u) => <tr key={u.user_id}>
                   <td><strong>{u.email || 'No email'}</strong><div className="muted">{u.user_id}</div></td>
-                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '-Ã‚Â'}</td>
+                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN") : "-"}</td>
                   <td>{u.email_confirmed ? 'Verified' : 'Not verified'}</td>
                   <td>{Array.isArray(u.businesses) && u.businesses.length ? u.businesses.map((b) => `${b.business_name} (${b.role})`).join(', ') : 'No business'}</td>
                   <td>{u.is_platform_admin ? 'Yes' : 'No'}</td>
