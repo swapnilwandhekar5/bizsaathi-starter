@@ -617,3 +617,66 @@ tbody tr:last-child td,
 .theme-toggle {
   font-size: 19px;
 }
+
+/* BizSaathi mobile navigation conflict fix */
+@media (max-width: 760px) {
+  .app-shell {
+    display: block !important;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .app-shell > .sidebar {
+    display: none !important;
+  }
+
+  .app-shell > .main-area {
+    display: block;
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .main-area > .topbar {
+    width: 100%;
+    min-width: 0;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .main-area > .content {
+    width: 100%;
+    min-width: 0;
+    padding: 18px 12px 100px;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-bottom-nav {
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+    z-index: 1000;
+  }
+
+  .mobile-bottom-nav button {
+    min-width: 0;
+  }
+
+  .stat-grid,
+  .quick-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-grid,
+  .two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
