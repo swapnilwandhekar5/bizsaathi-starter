@@ -1,4 +1,4 @@
-import './invoice-print.css';
+﻿import './invoice-print.css';
 import AuthGate from './AuthGate.jsx';
 import React, { useEffect, useMemo, useState } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -20,6 +20,7 @@ const uid = () => Date.now() + Math.floor(Math.random() * 1000);
 function App() {
   const [data, setData] = useState(readState);
   const [page, setPage] = useState('Overview');
+  const [showMobileMore, setShowMobileMore] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('bizsaathi-theme') || 'light');
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -752,14 +753,21 @@ if (!cancelled) setIsPlatformAdmin(data === true);
       <div className="sidebar-bottom"><div className="plan-card"><div className="plan-top"><span className="plan-dot"></span> DEMO PLAN</div><p>Your local demo workspace is ready.</p><button onClick={() => setPage('Subscription')}>View plans <span>-&gt;</span></button></div><small className="version">BizSaathi Starter | v0.1</small></div>
     </aside>
     <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
-      <button type="button" className={page === 'Overview' ? 'active' : ''} onClick={() => setPage('Overview')}><span>⌂</span><small>Home</small></button>
-      <button type="button" className={page === 'Billing' ? 'active' : ''} onClick={() => setPage('Billing')}><span>▣</span><small>Billing</small></button>
-      <button type="button" className={page === 'Products & Stock' ? 'active' : ''} onClick={() => setPage('Products & Stock')}><span>▦</span><small>Products</small></button>
-      <button type="button" className={page === 'Customers' ? 'active' : ''} onClick={() => setPage('Customers')}><span>♙</span><small>Customers</small></button>
-      <button type="button" className="mobile-more" onClick={() => setPage('Reports')}><span>•••</span><small>More</small></button>
+      <button type="button" className={page === 'Overview' ? 'active' : ''} onClick={() => setPage('Overview')}><span>âŒ‚</span><small>Home</small></button>
+      <button type="button" className={page === 'Billing' ? 'active' : ''} onClick={() => setPage('Billing')}><span>â–£</span><small>Billing</small></button>
+      <button type="button" className={page === 'Products & Stock' ? 'active' : ''} onClick={() => setPage('Products & Stock')}><span>â–¦</span><small>Products</small></button>
+      <button type="button" className={page === 'Customers' ? 'active' : ''} onClick={() => setPage('Customers')}><span>â™™</span><small>Customers</small></button>
+      <button type="button" className={`mobile-more ${showMobileMore ? 'active' : ''}`} onClick={() => setShowMobileMore(current => !current)} aria-expanded={showMobileMore}><span>•••</span><small>More</small></button>
     </nav>
+    {showMobileMore && <div className="mobile-more-menu">
+      {['Reports', 'Business Settings', 'Subscription'].map(item => <button key={item} type="button" onClick={() => { setPage(item); setShowMobileMore(false); }}>{item}</button>)}
+      {isPlatformAdmin && <>
+        <button type="button" onClick={() => { setPage('Super Admin'); setShowMobileMore(false); }}>Super Admin</button>
+        <button type="button" onClick={() => { setPage('User Management'); setShowMobileMore(false); }}>User Management</button>
+      </>}
+    </div>}
     <main className="main-area">
-      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button theme-toggle" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '☾' : '☀'}</button><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
+      <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> <b>{page}</b></div><div className="top-actions"><span className="demo-badge"><i></i> Demo mode</span><button className="icon-button theme-toggle" type="button" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={() => setTheme(current => current === 'light' ? 'dark' : 'light')}>{theme === 'light' ? 'â˜¾' : 'â˜€'}</button><button className="icon-button" title="Export local data" onClick={exportData}>I</button><div className="profile-chip"><div className="profile-avatar">{(data.business.owner || 'O').slice(0,1).toUpperCase()}</div><div><b>{data.business.owner || 'Owner'}</b><small>Owner account</small></div></div></div></header>
       <div className="content">
         {page === 'Super Admin' && isPlatformAdmin && <>
           <PageHeading title="Super Admin Dashboard" desc="Platform overview of registered businesses and user accounts." />
@@ -770,7 +778,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
               <Stat title="Registered businesses" value={platformOverview.total_businesses ?? (platformOverview.businesses || []).length} note="Businesses created on the platform" icon="B" tone="blue" />
               <Stat title="Active businesses" value={(platformOverview.businesses || []).filter(b => b.status !== 'suspended').length} note="Currently active businesses" icon="A" tone="green" />
               <Stat title="Suspended businesses" value={(platformOverview.businesses || []).filter(b => b.status === 'suspended').length} note="Businesses currently suspended" icon="S" tone="orange" />
-              <Stat title="Total recorded sales" value={money((platformOverview.businesses || []).reduce((sum, b) => sum + Number(b.total_sales || 0), 0))} note="Combined recorded business sales" icon="â‚¹" tone="purple" />
+              <Stat title="Total recorded sales" value={money((platformOverview.businesses || []).reduce((sum, b) => sum + Number(b.total_sales || 0), 0))} note="Combined recorded business sales" icon="Ã¢â€šÂ¹" tone="purple" />
             </div>
             <section className="panel">
               <div className="panel-heading"><div><h2>Business directory</h2><p>Latest registered businesses</p></div></div>
@@ -791,7 +799,7 @@ if (!cancelled) setIsPlatformAdmin(data === true);
               <tbody>
                 {platformUsers.map((u) => <tr key={u.user_id}>
                   <td><strong>{u.email || 'No email'}</strong><div className="muted">{u.user_id}</div></td>
-                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '-Â'}</td>
+                  <td>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '-Ã‚Â'}</td>
                   <td>{u.email_confirmed ? 'Verified' : 'Not verified'}</td>
                   <td>{Array.isArray(u.businesses) && u.businesses.length ? u.businesses.map((b) => `${b.business_name} (${b.role})`).join(', ') : 'No business'}</td>
                   <td>{u.is_platform_admin ? 'Yes' : 'No'}</td>
@@ -894,6 +902,8 @@ function Quick({title,desc,icon,onClick}) { return <button className="quick-card
 function DataTable({headers,rows,empty}) { return rows.length ? <div className="table-wrap"><table><thead><tr>{headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{v}</td>)}</tr>)}</tbody></table></div> : <div className="empty-small">{empty}</div>; }
 
 createRoot(document.getElementById('root')).render(<AuthGate><App /></AuthGate>);
+
+
 
 
 
